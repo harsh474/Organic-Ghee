@@ -242,3 +242,5 @@ app_license = "mit"
 # 	"Logging DocType Name": 30  # days to retain logs
 # }
 
+# Add this to your existing hooks.py
+after_request = "organic_ghee.utils.cookies.set_cookie_attributes"

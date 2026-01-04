@@ -1,0 +1,103 @@
+
+
+import frappe
+from frappe import _
+
+class AuthService:
+    def signup(self, email, password, name, phone):
+        # 1. Check if user already exists 
+
+        full_name =  name
+        mobile = phone 
+
+        if frappe.db.exists("User", email):
+            frappe.throw(_("Email already registered"), frappe.DuplicateEntryError)
+
+        # 2. Create User (for Authentication)
+        user = frappe.new_doc("User")
+        user.email = email
+        user.first_name = full_name
+        user.enabled = 1
+        user.new_password = password
+        user.user_type = "Website User"
+        user.save(ignore_permissions=True)
+        
+        # 3. Create Customer (for Business Data)
+        customer = frappe.new_doc("Customer")
+        customer.customer_name = full_name
+        customer.customer_type = "Individual"
+        customer.email_id = email
+        customer.mobile_no = mobile
+        # Link user if possible, or just rely on email match
+        # Standard ERPNext might not have direct 'user' link in Customer unless customized usually Portal User does.
+        # But we can rely on email being unique.
+        customer.save(ignore_permissions=True)
+        
+        # Generate and set session
+        self.login(email, password)
+        
+        return self.get_customer_profile()
+
+    def login(self, email, password):
+        try:
+            login_manager = frappe.auth.LoginManager()
+            login_manager.authenticate(user=email, pwd=password)
+            login_manager.post_login()
+        except frappe.exceptions.AuthenticationError:
+            frappe.throw(_("Invalid Email or Password"), frappe.AuthenticationError)
+            
+        return self.get_customer_profile()
+
+    def logout(self):
+        frappe.local.login_manager.logout()
+
+    def get_customer_profile(self):
+        print("get_customer_profile++++++++++++++++=",frappe.session.user)
+        user = frappe.session.user
+        if user == "Guest":
+            frappe.throw(_("Not logged in"), frappe.PermissionError)
+
+        # Find Customer linked to this User (by email)
+        customer_name = frappe.db.get_value("Customer", {"email_id": user}, "name") 
+        print("customer_name++++++++++++++++++++++",customer_name)
+        if not customer_name:
+             # Fallback if no customer found for user (rare in this flow)
+            return {
+                "user": user,
+                "customer": None
+            }
+
+        customer = frappe.get_doc("Customer", customer_name)
+        print("customer++++++++++++++++++++++",customer)
+        return {
+            "name": customer.customer_name,
+            "email": customer.email_id,
+            "phone": customer.mobile_no,
+            "customer_id": customer.name
+        }
+
+    def update_profile(self, **kwargs):
+        user = frappe.session.user
+        if user == "Guest":
+            frappe.throw(_("Not logged in"), frappe.PermissionError)
+
+        customer_name = frappe.db.get_value("Customer", {"email_id": user}, "name")
+        if not customer_name:
+            frappe.throw(_("Customer profile not found"), frappe.DoesNotExistError)
+
+        customer = frappe.get_doc("Customer", customer_name)
+        
+        if "full_name" in kwargs:
+            customer.customer_name = kwargs["full_name"]
+            # Also update User first_name
+            user_doc = frappe.get_doc("User", user)
+            user_doc.first_name = kwargs["full_name"]
+            user_doc.save(ignore_permissions=True)
+            
+        if "mobile" in kwargs:
+            customer.mobile_no = kwargs["mobile"]
+            
+        # Email update is complex (needs User update too), skipping for basic MVP unless requested.
+            
+        customer.save(ignore_permissions=True)
+        return self.get_customer_profile()
