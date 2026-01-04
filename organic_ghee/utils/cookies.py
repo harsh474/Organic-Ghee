@@ -1,5 +1,4 @@
 import frappe
-from werkzeug.http import dump_cookie
 
 def set_samesite_none():
     """
