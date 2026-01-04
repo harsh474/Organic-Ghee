@@ -6,6 +6,7 @@ from organic_ghee.utils.response import success_response, error_response
 item_service = ItemService()
 
 @frappe.whitelist(allow_guest=True)
+@frappe.cache(ttl=600)
 def get_all_items(page=1, page_size=20):
     try:
         data = item_service.get_items_list(page, page_size)

@@ -243,4 +243,10 @@ app_license = "mit"
 # }
 
 # Add this to your existing hooks.py
-after_request = "organic_ghee.utils.cookies.set_cookie_attributes"
+after_request = [
+    "organic_ghee.utils.cookies.set_samesite_none"
+]
+
+before_request = [
+    "organic_ghee.utils.cookies.handle_options_request"
+]
